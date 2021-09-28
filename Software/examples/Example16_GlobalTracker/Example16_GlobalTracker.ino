@@ -69,6 +69,8 @@
 
 */
 
+//#define USE_QWIIC
+
 // Artemis Global Tracker pin definitions
 #define spiCS1              4  // D4 can be used as an SPI chip select or as a general purpose IO pin
 #define geofencePin         10 // Input for the ZOE-M8Q's PIO14 (geofence) pin
@@ -111,6 +113,11 @@ IridiumSBD modem(Serial1, iridiumSleep, iridiumRI);
 const byte PIN_AGTWIRE_SCL = 8;
 const byte PIN_AGTWIRE_SDA = 9;
 TwoWire agtWire(PIN_AGTWIRE_SDA, PIN_AGTWIRE_SCL); //Create an I2C port using pads 8 (SCL) and 9 (SDA)
+#ifdef USE_QWIIC
+const byte PIN_QWIIC_SCL = 39;
+const byte PIN_QWIIC_SDA = 40;
+TwoWire qwiic(PIN_QWIIC_SDA, PIN_QWIIC_SCL); //Create an I2C port using Artemis pads 39 (SCL) and 40 (SDA) broken out to QWIIC connector
+#endif
 
 #include <SparkFun_PHT_MS8607_Arduino_Library.h> //http://librarymanager/All#SparkFun_MS8607
 MS8607 barometricSensor; //Create an instance of the MS8607 object
@@ -418,6 +425,10 @@ void loop()
       agtWire.begin(); // Set up the I2C pins
       agtWire.setClock(100000); // Use 100kHz for best performance
       setAGTWirePullups(1); // MS8607 needs pull-ups
+      #ifdef USE_QWIIC
+      qwiic.begin(); // Set up QWIIC I2C
+      setQwiicPins();
+      #endif
 
       bool barometricSensorOK;
       barometricSensorOK = barometricSensor.begin(agtWire); // Begin the PHT sensor
@@ -2418,14 +2429,16 @@ void loop()
       //am_hal_pwrctrl_periph_disable(AM_HAL_PWRCTRL_PERIPH_IOM1); // agtWire I2C
       am_hal_pwrctrl_periph_disable(AM_HAL_PWRCTRL_PERIPH_IOM2);
       am_hal_pwrctrl_periph_disable(AM_HAL_PWRCTRL_PERIPH_IOM3);
-      am_hal_pwrctrl_periph_disable(AM_HAL_PWRCTRL_PERIPH_IOM4); // Qwiic I2C
+      #ifdef USE_QWIIC
+      //am_hal_pwrctrl_periph_disable(AM_HAL_PWRCTRL_PERIPH_IOM4); // Qwiic I2C
+      #endif
       am_hal_pwrctrl_periph_disable(AM_HAL_PWRCTRL_PERIPH_IOM5);
       am_hal_pwrctrl_periph_disable(AM_HAL_PWRCTRL_PERIPH_ADC);
       //am_hal_pwrctrl_periph_disable(AM_HAL_PWRCTRL_PERIPH_UART0); // Leave UART0 on to avoid printing erroneous characters to Serial
       am_hal_pwrctrl_periph_disable(AM_HAL_PWRCTRL_PERIPH_UART1); // Serial1
     
       // Disable all unused pins - including: SCL (8), SDA (9), UART0 TX (48) and RX (49) and UART1 TX (24) and RX (25)
-      const int pinsToDisable[] = {0,1,2,8,9,11,12,14,15,16,20,21,24,25,29,31,32,33,36,37,38,42,43,44,45,48,49,-1};
+      const int pinsToDisable[] = {0,1,2,8,9,11,12,14,15,16,20,21,24,25,29,31,32,33,36,37,38,39,40,42,43,44,45,48,49,-1};
       for (int x = 0; pinsToDisable[x] >= 0; x++)
       {
         pin_config(PinName(pinsToDisable[x]), g_AM_HAL_GPIO_DISABLE);
@@ -2630,3 +2643,12 @@ void setAGTWirePullups(uint32_t i2cBusPullUps)
   pin_config(PinName(PIN_AGTWIRE_SCL), sclPinCfg);
   pin_config(PinName(PIN_AGTWIRE_SDA), sdaPinCfg);
 }
+
+#ifdef USE_QWIIC
+void setQwiicPins()
+{
+  //Restore QWIIC SCL (39) and SDA (40) manually using pin_config
+  pin_config(PinName(PIN_QWIIC_SCL), g_AM_BSP_GPIO_IOM4_SCL);
+  pin_config(PinName(PIN_QWIIC_SDA), g_AM_BSP_GPIO_IOM4_SDA);
+}
+#endif
